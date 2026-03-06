@@ -1,0 +1,99 @@
+.ls-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #080b11;
+  opacity: 1;
+}
+
+.ls-panel {
+  width: min(420px, 100%);
+  border-radius: 16px;
+  border: 1px solid #202736;
+  background: linear-gradient(180deg, #131926 0%, #0f1521 100%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  padding: 24px;
+}
+
+.ls-badge {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9eb1d6;
+  background: #1f2b45;
+  border: 1px solid #314a7d;
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-bottom: 14px;
+}
+
+.ls-title {
+  margin: 0;
+  font-size: 24px;
+  color: #f2f5fc;
+}
+
+.ls-subtitle {
+  margin: 8px 0 0;
+  color: #b4bfd6;
+  line-height: 1.5;
+}
+
+.ls-form {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.ls-input {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #3b4761;
+  background: #0c1220;
+  color: #f4f8ff;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.ls-input:focus {
+  outline: none;
+  border-color: #78a2ff;
+  box-shadow: 0 0 0 2px rgba(120, 162, 255, 0.25);
+}
+
+.ls-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.ls-button {
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4b77d4, #4d93ff);
+  color: #f7faff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ls-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.ls-error {
+  min-height: 18px;
+  color: #ff8e8e;
+  font-size: 12px;
+}
+
+.ls-helper {
+  margin-top: 6px;
+  color: #8f9ebb;
+  font-size: 12px;
+}

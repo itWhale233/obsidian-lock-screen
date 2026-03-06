@@ -1,0 +1,64 @@
+name: Build And Release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建插件
+        run: npm run build
+
+      - name: 创建 Gitea Release 并上传产物
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GITEA_TOKEN:-}" ]; then
+            echo "缺少 GITEA_TOKEN，请在仓库 Secrets 中配置。"
+            exit 1
+          fi
+
+          export RELEASE_TAG="auto-build-${RUN_NUMBER}"
+          export RELEASE_NAME="自动构建 ${RUN_NUMBER}"
+
+          node -e "const fs=require('node:fs'); const payload={tag_name:process.env.RELEASE_TAG,target:process.env.COMMIT_SHA,name:process.env.RELEASE_NAME,body:'自动构建产物发布（main.js/manifest.json/styles.css/versions.json）',draft:false,prerelease:false}; fs.writeFileSync('release-payload.json', JSON.stringify(payload));"
+
+          API_BASE="${SERVER_URL}/api/v1"
+
+          RELEASE_RESPONSE=$(curl -sS -X POST \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @release-payload.json \
+            "${API_BASE}/repos/${REPOSITORY}/releases")
+
+          RELEASE_ID=$(printf '%s' "${RELEASE_RESPONSE}" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);if(!j.id){process.stderr.write(d);process.exit(1);}process.stdout.write(String(j.id));}catch{process.stderr.write(d);process.exit(1);}})")
+
+          for file in main.js manifest.json styles.css versions.json; do
+            curl -sS -X POST \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"${file}" \
+              "${API_BASE}/repos/${REPOSITORY}/releases/${RELEASE_ID}/assets?name=${file}" >/dev/null
+          done
