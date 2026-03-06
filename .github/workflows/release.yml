@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -22,18 +24,48 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: 判断是否需要发布
+        id: version_check
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+
+          git fetch --tags --force >/dev/null 2>&1 || true
+
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "检测到标签 ${TAG} 已存在，本次跳过发布。"
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "检测到新版本 ${TAG}，将执行发布。"
+          fi
+
       - name: 安装依赖
+        if: steps.version_check.outputs.should_release == 'true'
         run: npm ci
 
       - name: 构建插件
+        if: steps.version_check.outputs.should_release == 'true'
         run: npm run build
 
-      - name: 生成发布标签
+      - name: 生成发布信息与打包文件
+        if: steps.version_check.outputs.should_release == 'true'
         run: |
-          echo "RELEASE_TAG=auto-build-${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-          echo "RELEASE_NAME=自动构建 ${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          RELEASE_TAG="${{ steps.version_check.outputs.release_tag }}"
+          RELEASE_NAME="${RELEASE_TAG}"
+          ZIP_NAME="lock-screen-${RELEASE_TAG}.zip"
+
+          zip -j "$ZIP_NAME" main.js manifest.json styles.css versions.json
+
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=${RELEASE_NAME}" >> "$GITHUB_ENV"
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
 
       - name: 创建 Release 并上传产物
+        if: steps.version_check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
@@ -45,5 +77,10 @@ jobs:
             manifest.json
             styles.css
             versions.json
+            ${{ env.ZIP_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 跳过发布说明
+        if: steps.version_check.outputs.should_release != 'true'
+        run: echo "当前 push 未产生新版本号，已跳过 Release。"
