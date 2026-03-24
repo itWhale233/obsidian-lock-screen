@@ -11,6 +11,10 @@ export class LockOverlay {
       return;
     }
 
+    if (!this.doc.hasFocus()) {
+      return;
+    }
+
     const target = event.target instanceof Node ? event.target : null;
     if (!target || !this.rootEl.contains(target)) {
       event.preventDefault();
@@ -54,7 +58,7 @@ export class LockOverlay {
     root.style.display = "grid";
     root.style.placeItems = "center";
     root.style.padding = "24px";
-    root.style.background = "#080b11";
+    root.style.background = "color-mix(in srgb, var(--background-primary) 82%, black 18%)";
     root.style.opacity = "1";
     if (topInset > 0) {
       root.style.inset = `${topInset}px 0 0 0`;
@@ -62,46 +66,49 @@ export class LockOverlay {
 
     const panel = this.doc.createElement("div");
     panel.className = "ls-panel";
-    panel.style.width = "min(420px, 100%)";
-    panel.style.borderRadius = "16px";
-    panel.style.border = "1px solid #202736";
-    panel.style.background = "linear-gradient(180deg, #131926 0%, #0f1521 100%)";
-    panel.style.boxShadow = "0 24px 80px rgba(0, 0, 0, 0.55)";
-    panel.style.padding = "24px";
+    panel.style.width = "min(460px, 100%)";
+    panel.style.borderRadius = "18px";
+    panel.style.border = "1px solid var(--background-modifier-border)";
+    panel.style.background =
+      "radial-gradient(circle at 85% -10%, color-mix(in srgb, var(--interactive-accent) 20%, transparent), transparent 35%), radial-gradient(circle at -5% 110%, color-mix(in srgb, var(--text-muted) 10%, transparent), transparent 40%), var(--background-primary)";
+    panel.style.boxShadow = "0 22px 64px rgba(0, 0, 0, 0.35)";
+    panel.style.padding = "26px";
 
     const badge = this.doc.createElement("div");
     badge.className = "ls-badge";
     badge.textContent = "受保护工作区";
     badge.style.display = "inline-block";
     badge.style.fontSize = "11px";
-    badge.style.letterSpacing = "0.1em";
+    badge.style.letterSpacing = "0.08em";
     badge.style.textTransform = "uppercase";
-    badge.style.color = "#9eb1d6";
-    badge.style.background = "#1f2b45";
-    badge.style.border = "1px solid #314a7d";
+    badge.style.color = "var(--interactive-accent)";
+    badge.style.background = "color-mix(in srgb, var(--interactive-accent) 14%, transparent)";
+    badge.style.border =
+      "1px solid color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border))";
     badge.style.borderRadius = "999px";
-    badge.style.padding = "4px 10px";
+    badge.style.padding = "5px 10px";
     badge.style.marginBottom = "14px";
 
     const title = this.doc.createElement("h2");
     title.className = "ls-title";
     title.textContent = "编辑器已锁定";
     title.style.margin = "0";
-    title.style.fontSize = "24px";
-    title.style.color = "#f2f5fc";
+    title.style.fontSize = "26px";
+    title.style.letterSpacing = "0.01em";
+    title.style.color = "var(--text-normal)";
 
     const subtitle = this.doc.createElement("p");
     subtitle.className = "ls-subtitle";
     subtitle.textContent = "请输入访问授权码以继续使用 Obsidian。";
     subtitle.style.margin = "8px 0 0";
-    subtitle.style.color = "#b4bfd6";
-    subtitle.style.lineHeight = "1.5";
+    subtitle.style.color = "var(--text-muted)";
+    subtitle.style.lineHeight = "1.6";
 
     const form = this.doc.createElement("form");
     form.className = "ls-form";
     form.style.marginTop = "18px";
     form.style.display = "grid";
-    form.style.gap = "10px";
+    form.style.gap = "12px";
 
     const input = this.doc.createElement("input");
     input.className = "ls-input";
@@ -109,11 +116,11 @@ export class LockOverlay {
     input.autocomplete = "off";
     input.placeholder = "请输入访问授权码";
     input.style.width = "100%";
-    input.style.height = "40px";
+    input.style.height = "42px";
     input.style.borderRadius = "10px";
-    input.style.border = "1px solid #3b4761";
-    input.style.background = "#0c1220";
-    input.style.color = "#f4f8ff";
+    input.style.border = "1px solid var(--background-modifier-border)";
+    input.style.background = "var(--background-secondary)";
+    input.style.color = "var(--text-normal)";
     input.style.padding = "0 12px";
     input.style.fontSize = "14px";
 
@@ -126,18 +133,20 @@ export class LockOverlay {
     button.className = "ls-button";
     button.type = "submit";
     button.textContent = "解锁";
-    button.style.height = "40px";
+    button.style.height = "42px";
     button.style.border = "0";
     button.style.borderRadius = "10px";
-    button.style.background = "linear-gradient(135deg, #4b77d4, #4d93ff)";
-    button.style.color = "#f7faff";
+    button.style.background =
+      "linear-gradient(135deg, color-mix(in srgb, var(--interactive-accent) 88%, white 12%), var(--interactive-accent))";
+    button.style.color = "var(--text-on-accent, #ffffff)";
     button.style.fontWeight = "600";
+    button.style.letterSpacing = "0.01em";
     button.style.cursor = "pointer";
 
     const error = this.doc.createElement("div");
     error.className = "ls-error";
     error.style.minHeight = "18px";
-    error.style.color = "#ff8e8e";
+    error.style.color = "var(--text-error, #d44c4c)";
     error.style.fontSize = "12px";
 
     actions.append(button);
@@ -241,6 +250,10 @@ export class LockOverlay {
     this.doc.addEventListener("focusin", this.focusGuardHandler, true);
     this.focusGuardTimer = this.win.setInterval(() => {
       if (!this.rootEl || !this.inputEl) {
+        return;
+      }
+
+      if (!this.doc.hasFocus()) {
         return;
       }
 

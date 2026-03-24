@@ -3,7 +3,7 @@
   "name": "锁屏保护",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "桌面端系统锁屏后自动锁定 Obsidian，需输入访问授权码解锁。",
+  "description": "为 Obsidian 桌面端提供访问授权码锁屏与快捷记录弹窗。",
   "author": "LockScreen Team",
   "isDesktopOnly": true
 }

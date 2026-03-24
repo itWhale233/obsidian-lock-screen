@@ -1,5 +1,10 @@
 import { Notice, Platform, Plugin, type WorkspaceLeaf } from "obsidian";
 import { LockManager, type LockScreenSettingsSnapshot } from "./lockManager";
+import {
+  DEFAULT_QUICK_NOTE_SETTINGS,
+  QuickCaptureService,
+  type QuickNoteSettings
+} from "./quickCapture";
 import { constantTimeEqual, createSalt, hashPasscode } from "./security";
 import { LockScreenSettingTab } from "./settings";
 
@@ -15,6 +20,7 @@ export interface LockScreenSettings extends LockScreenSettingsSnapshot {
   hashIterations: number;
   syncStateVersion: number;
   syncLocked: boolean;
+  quickNote: QuickNoteSettings;
 }
 
 const DEFAULT_SETTINGS: LockScreenSettings = {
@@ -25,15 +31,19 @@ const DEFAULT_SETTINGS: LockScreenSettings = {
   passcodeSalt: "",
   hashIterations: 210_000,
   syncStateVersion: 0,
-  syncLocked: false
+  syncLocked: false,
+  quickNote: { ...DEFAULT_QUICK_NOTE_SETTINGS }
 };
 
 export default class LockScreenPlugin extends Plugin {
   settings: LockScreenSettings = { ...DEFAULT_SETTINGS };
   private readonly windowManagers = new Map<Window, LockManager>();
+  private settingsTab: LockScreenSettingTab | null = null;
+  private quickCaptureService: QuickCaptureService | null = null;
   private readonly windowId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   private syncChannel: BroadcastChannel | null = null;
   private syncPollTimer: number | null = null;
+  private windowPolicyTimer: number | null = null;
   private suppressSyncBroadcast = false;
 
   async onload(): Promise<void> {
@@ -47,9 +57,14 @@ export default class LockScreenPlugin extends Plugin {
     this.setupWorkspaceWindowTracking();
     this.setupCrossWindowSync();
     this.setupDiskSyncFallback();
+    this.setupWindowPolicyWatcher();
     this.setupSystemLockListener();
 
-    this.addSettingTab(new LockScreenSettingTab(this.app, this));
+    this.quickCaptureService = new QuickCaptureService(this);
+    this.quickCaptureService.onload();
+
+    this.settingsTab = new LockScreenSettingTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
 
     this.addCommand({
       id: "lock-screen-now",
@@ -58,7 +73,7 @@ export default class LockScreenPlugin extends Plugin {
     });
 
     if (this.shouldLockOnStartup()) {
-      this.lockAllWindows();
+      this.requestGlobalLockState(true);
     }
 
     if (this.settings.syncLocked || this.readGlobalLockState()) {
@@ -75,10 +90,19 @@ export default class LockScreenPlugin extends Plugin {
       this.syncPollTimer = null;
     }
 
+    if (this.windowPolicyTimer !== null) {
+      window.clearInterval(this.windowPolicyTimer);
+      this.windowPolicyTimer = null;
+    }
+
     for (const manager of this.windowManagers.values()) {
       manager.teardown();
     }
     this.windowManagers.clear();
+
+    this.quickCaptureService?.onunload();
+    this.quickCaptureService = null;
+    this.settingsTab = null;
   }
 
   hasConfiguredPasscode(): boolean {
@@ -88,6 +112,11 @@ export default class LockScreenPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const loaded = (await this.loadData()) as Partial<LockScreenSettings> | null;
     this.settings = { ...DEFAULT_SETTINGS, ...(loaded ?? {}) };
+
+    this.settings.quickNote = {
+      ...DEFAULT_QUICK_NOTE_SETTINGS,
+      ...(loaded?.quickNote ?? {})
+    };
 
     if (loaded?.lockOnSystemLock === undefined) {
       const legacyLockOnHide = (loaded as Partial<{ lockOnHide: boolean }> | null)?.lockOnHide;
@@ -99,6 +128,14 @@ export default class LockScreenPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+  }
+
+  refreshSettingsTab(): void {
+    this.settingsTab?.display();
+  }
+
+  renderQuickCaptureSettings(containerEl: HTMLElement): void {
+    this.quickCaptureService?.renderSettings(containerEl);
   }
 
   async configurePasscode(passcode: string): Promise<void> {
@@ -133,7 +170,11 @@ export default class LockScreenPlugin extends Plugin {
       return;
     }
 
-    this.lockAllWindows();
+    this.requestGlobalLockState(true);
+  }
+
+  openQuickCapture(): void {
+    this.quickCaptureService?.openFromExternalTrigger();
   }
 
   refreshLockState(): void {
@@ -147,9 +188,7 @@ export default class LockScreenPlugin extends Plugin {
   }
 
   private lockAllWindows(): void {
-    for (const manager of this.windowManagers.values()) {
-      manager.lock();
-    }
+    this.applyLockPolicyToAllWindows(true);
   }
 
   private async verifyPasscode(passcode: string): Promise<boolean> {
@@ -184,7 +223,7 @@ export default class LockScreenPlugin extends Plugin {
       this.app.workspace.on("window-open", (_workspaceWindow, win) => {
         const manager = this.ensureWindowManager(win);
         if (this.settings.syncLocked || this.readGlobalLockState()) {
-          this.applyLockToManager(manager, true);
+          this.applyLockPolicyToManagerSilently(win, manager, true);
         }
       })
     );
@@ -208,7 +247,7 @@ export default class LockScreenPlugin extends Plugin {
       verifyPasscode: async (passcode) => this.verifyPasscode(passcode),
       windowRef: win,
       documentRef: win.document,
-      onLockStateChanged: (locked) => this.handleLockStateChangedFromManager(manager, locked)
+      onLockStateChanged: (locked) => this.handleLockStateChangedFromManager(win, manager, locked)
     });
 
     this.windowManagers.set(win, manager);
@@ -217,7 +256,7 @@ export default class LockScreenPlugin extends Plugin {
       manager.handleWindowFocus();
 
       if (this.settings.syncLocked || this.readGlobalLockState()) {
-        this.applyLockToManager(manager, true);
+        this.applyLockPolicyToManagerSilently(win, manager, true);
       }
     });
 
@@ -274,7 +313,11 @@ export default class LockScreenPlugin extends Plugin {
     }
 
     const onSystemLock = (): void => {
-      this.lockAllWindows();
+      if (!this.settings.enabled || !this.hasConfiguredPasscode() || !this.settings.lockOnSystemLock) {
+        return;
+      }
+
+      this.requestGlobalLockState(true);
     };
 
     powerMonitor.on("lock-screen", onSystemLock);
@@ -306,25 +349,48 @@ export default class LockScreenPlugin extends Plugin {
     });
   }
 
-  private handleLockStateChangedFromManager(originManager: LockManager, locked: boolean): void {
-    const stateChanged = this.settings.syncLocked !== locked;
-
-    const previousSuppress = this.suppressSyncBroadcast;
-    this.suppressSyncBroadcast = true;
-    for (const manager of this.windowManagers.values()) {
-      if (manager === originManager) {
-        continue;
-      }
-
-      this.applyLockToManager(manager, locked);
-    }
-    this.suppressSyncBroadcast = previousSuppress;
-
-    if (!stateChanged) {
+  private handleLockStateChangedFromManager(
+    originWindow: Window,
+    originManager: LockManager,
+    locked: boolean
+  ): void {
+    if (this.suppressSyncBroadcast) {
       return;
     }
 
+    if (locked && this.isWindowExempt(originWindow)) {
+      const previousSuppress = this.suppressSyncBroadcast;
+      this.suppressSyncBroadcast = true;
+      originManager.unlock();
+      this.suppressSyncBroadcast = previousSuppress;
+      return;
+    }
+
+    void originWindow;
+    void originManager;
+    this.requestGlobalLockState(locked);
+  }
+
+  private handleSyncMessage(message: LockSyncMessage): void {
+    if (!message || message.sourceWindowId === this.windowId) {
+      return;
+    }
+
+    this.applyRemoteLockState(message.type === "lock");
+  }
+
+  private applyRemoteLockState(locked: boolean): void {
+    this.applyLockPolicyToAllWindows(locked);
     this.settings.syncLocked = locked;
+  }
+
+  private requestGlobalLockState(locked: boolean): void {
+    if (this.settings.syncLocked === locked) {
+      this.applyRemoteLockState(locked);
+      return;
+    }
+
+    this.applyRemoteLockState(locked);
     this.writeGlobalLockState(locked);
     void this.persistGlobalLockState(locked);
 
@@ -340,29 +406,63 @@ export default class LockScreenPlugin extends Plugin {
     this.syncChannel?.postMessage(message);
   }
 
-  private handleSyncMessage(message: LockSyncMessage): void {
-    if (!message || message.sourceWindowId === this.windowId) {
+  private applyLockPolicyToAllWindows(locked: boolean): void {
+    const previousSuppress = this.suppressSyncBroadcast;
+    this.suppressSyncBroadcast = true;
+    for (const [win, manager] of this.windowManagers.entries()) {
+      this.applyLockPolicyToManager(win, manager, locked);
+    }
+    this.suppressSyncBroadcast = previousSuppress;
+  }
+
+  private applyLockPolicyToManager(win: Window, manager: LockManager, locked: boolean): void {
+    const shouldStayUnlocked = this.isWindowExempt(win);
+    if (!locked || shouldStayUnlocked) {
+      manager.unlock();
       return;
     }
 
-    this.applyRemoteLockState(message.type === "lock");
+    manager.lock();
   }
 
-  private applyRemoteLockState(locked: boolean): void {
+  private applyLockPolicyToManagerSilently(win: Window, manager: LockManager, locked: boolean): void {
+    const previousSuppress = this.suppressSyncBroadcast;
     this.suppressSyncBroadcast = true;
-    for (const manager of this.windowManagers.values()) {
-      this.applyLockToManager(manager, locked);
-    }
-    this.suppressSyncBroadcast = false;
-    this.settings.syncLocked = locked;
+    this.applyLockPolicyToManager(win, manager, locked);
+    this.suppressSyncBroadcast = previousSuppress;
   }
 
-  private applyLockToManager(manager: LockManager, locked: boolean): void {
-    if (locked) {
-      manager.lock();
-    } else {
-      manager.unlock();
+  private setupWindowPolicyWatcher(): void {
+    this.windowPolicyTimer = window.setInterval(() => {
+      const globalLocked = this.settings.syncLocked || this.readGlobalLockState();
+      this.applyLockPolicyToAllWindows(globalLocked);
+    }, 400);
+
+    this.register(() => {
+      if (this.windowPolicyTimer !== null) {
+        window.clearInterval(this.windowPolicyTimer);
+        this.windowPolicyTimer = null;
+      }
+    });
+  }
+
+  private isWindowExempt(win: Window): boolean {
+    const rawWindow = win as unknown as {
+      __LOCK_SCREEN_EXEMPT__?: boolean;
+    };
+
+    if (rawWindow.__LOCK_SCREEN_EXEMPT__ === true) {
+      return true;
     }
+
+    const doc = win.document;
+    const htmlFlag = doc.documentElement.getAttribute("data-lockscreen-exempt");
+    if (htmlFlag === "true") {
+      return true;
+    }
+
+    const bodyFlag = doc.body?.getAttribute("data-lockscreen-exempt");
+    return bodyFlag === "true";
   }
 
   private setupDiskSyncFallback(): void {

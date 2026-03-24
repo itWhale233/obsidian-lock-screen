@@ -95,5 +95,8 @@ export class LockScreenSettingTab extends PluginSettingTab {
           this.plugin.lockNow();
         })
       );
+
+    containerEl.createEl("hr");
+    this.plugin.renderQuickCaptureSettings(containerEl);
   }
 }

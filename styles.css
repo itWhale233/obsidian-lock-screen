@@ -5,65 +5,74 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: #080b11;
+  background: color-mix(in srgb, var(--background-primary) 82%, black 18%);
   opacity: 1;
 }
 
 .ls-panel {
-  width: min(420px, 100%);
-  border-radius: 16px;
-  border: 1px solid #202736;
-  background: linear-gradient(180deg, #131926 0%, #0f1521 100%);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-  padding: 24px;
+  width: min(460px, 100%);
+  border-radius: 18px;
+  border: 1px solid var(--background-modifier-border);
+  background:
+    radial-gradient(circle at 85% -10%, color-mix(in srgb, var(--interactive-accent) 20%, transparent), transparent 35%),
+    radial-gradient(circle at -5% 110%, color-mix(in srgb, var(--text-muted) 10%, transparent), transparent 40%),
+    var(--background-primary);
+  box-shadow: 0 22px 64px rgba(0, 0, 0, 0.35);
+  padding: 26px;
 }
 
 .ls-badge {
   display: inline-block;
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #9eb1d6;
-  background: #1f2b45;
-  border: 1px solid #314a7d;
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   margin-bottom: 14px;
 }
 
 .ls-title {
   margin: 0;
-  font-size: 24px;
-  color: #f2f5fc;
+  font-size: 26px;
+  letter-spacing: 0.01em;
+  color: var(--text-normal);
 }
 
 .ls-subtitle {
   margin: 8px 0 0;
-  color: #b4bfd6;
-  line-height: 1.5;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
 .ls-form {
   margin-top: 18px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .ls-input {
   width: 100%;
-  height: 40px;
+  height: 42px;
   border-radius: 10px;
-  border: 1px solid #3b4761;
-  background: #0c1220;
-  color: #f4f8ff;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
   padding: 0 12px;
   font-size: 14px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.ls-input::placeholder {
+  color: var(--text-faint);
 }
 
 .ls-input:focus {
   outline: none;
-  border-color: #78a2ff;
-  box-shadow: 0 0 0 2px rgba(120, 162, 255, 0.25);
+  border-color: color-mix(in srgb, var(--interactive-accent) 70%, var(--background-modifier-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 24%, transparent);
 }
 
 .ls-actions {
@@ -72,13 +81,27 @@
 }
 
 .ls-button {
-  height: 40px;
+  height: 42px;
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(135deg, #4b77d4, #4d93ff);
-  color: #f7faff;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--interactive-accent) 88%, white 12%),
+    var(--interactive-accent)
+  );
+  color: var(--text-on-accent, #ffffff);
   font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.ls-button:hover {
+  filter: brightness(1.05);
+}
+
+.ls-button:active {
+  transform: translateY(1px);
 }
 
 .ls-button:disabled {
@@ -88,12 +111,6 @@
 
 .ls-error {
   min-height: 18px;
-  color: #ff8e8e;
-  font-size: 12px;
-}
-
-.ls-helper {
-  margin-top: 6px;
-  color: #8f9ebb;
+  color: var(--text-error, #d44c4c);
   font-size: 12px;
 }

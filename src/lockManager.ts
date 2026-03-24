@@ -79,6 +79,14 @@ export class LockManager {
       return;
     }
 
+    if (!this.options.documentRef.hasFocus()) {
+      return;
+    }
+
+    if (!this.options.documentRef.hasFocus()) {
+      return;
+    }
+
     const root = this.overlay.getRoot();
     if (!root) {
       return;
