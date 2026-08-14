@@ -2,6 +2,9 @@
 
 LockScreen 是一个面向 Obsidian 桌面端的访问授权码锁屏插件。
 
+<img width="896" height="556" alt="image" src="https://github.com/user-attachments/assets/1a0d9a86-ee6c-48a0-9a10-617481387577" />
+
+
 ## 项目介绍
 - 核心能力聚焦为两部分：访问授权码锁屏、快捷记录弹窗。
 - 锁屏功能在桌面端系统锁屏后自动保护工作区，使用完全不透明遮罩并支持多窗口联动解锁；Linux 同时支持 Electron 与 KDE/freedesktop 会话 DBus 检测。
