@@ -1,7 +1,7 @@
 {
   "id": "lock-screen",
   "name": "锁屏保护",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "minAppVersion": "1.5.0",
   "description": "为 Obsidian 桌面端提供访问授权码锁屏与快捷记录弹窗。",
   "author": "LockScreen Team",

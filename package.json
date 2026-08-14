@@ -1,6 +1,6 @@
 {
   "name": "obsidian-lock-screen",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Obsidian desktop plugin that locks the workspace behind an access passcode.",
   "scripts": {
