@@ -8,6 +8,6 @@
 - 新增或调整文档时，必须同步维护本索引中的链接与简述。
 
 ## 文档列表
-- `docs/lock-screen.md`：锁屏模块的架构、流程与安全设计。
+- `docs/lock-screen.md`：锁屏模块的架构、系统事件检测、流程与安全设计。
 - `docs/quick-capture.md`：快捷记录弹窗的交互流程、保存策略与锁屏豁免设计。
 - `docs/ci-cd.md`：GitHub/Gitea 自动构建与 Release 发布流程。

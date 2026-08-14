@@ -7,6 +7,7 @@ import {
 } from "./quickCapture";
 import { constantTimeEqual, createSalt, hashPasscode } from "./security";
 import { LockScreenSettingTab } from "./settings";
+import { SystemLockDetector } from "./systemLockDetector";
 
 const GLOBAL_LOCK_STATE_KEY = "lock-screen:global-locked";
 const GLOBAL_SYNC_CHANNEL = "lock-screen:sync";
@@ -45,6 +46,7 @@ export default class LockScreenPlugin extends Plugin {
   private syncPollTimer: number | null = null;
   private windowPolicyTimer: number | null = null;
   private suppressSyncBroadcast = false;
+  private systemLockDetector: SystemLockDetector | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -283,46 +285,32 @@ export default class LockScreenPlugin extends Plugin {
   }
 
   private setupSystemLockListener(): void {
-    type PowerMonitorLike = {
-      on: (event: "lock-screen", handler: () => void) => void;
-      removeListener: (event: "lock-screen", handler: () => void) => void;
+    const unsafeWindow = window as unknown as {
+      require?: (id: string) => unknown;
     };
 
-    type ElectronLike = {
-      powerMonitor?: PowerMonitorLike;
-      remote?: {
-        powerMonitor?: PowerMonitorLike;
-      };
-    };
+    this.systemLockDetector = new SystemLockDetector({
+      platform: process.platform,
+      requireModule: unsafeWindow.require?.bind(unsafeWindow),
+      onLock: () => {
+        if (!this.settings.enabled || !this.hasConfiguredPasscode() || !this.settings.lockOnSystemLock) {
+          return;
+        }
 
-    let electronModule: ElectronLike | null = null;
-
-    try {
-      const unsafeWindow = window as unknown as { require?: (id: string) => ElectronLike };
-      if (unsafeWindow.require) {
-        electronModule = unsafeWindow.require("electron");
+        this.requestGlobalLockState(true);
+      },
+      onUnavailable: () => {
+        new Notice("未检测到系统锁屏事件通道，自动锁定仅可手动触发。", 5000);
+      },
+      onWarning: (message, error) => {
+        console.warn(`[锁屏保护] ${message}`, error ?? "");
       }
-    } catch {
-      electronModule = null;
-    }
+    });
+    this.systemLockDetector.start();
 
-    const powerMonitor = electronModule?.powerMonitor ?? electronModule?.remote?.powerMonitor;
-    if (!powerMonitor) {
-      new Notice("未检测到系统锁屏事件通道，自动锁定仅可手动触发。", 5000);
-      return;
-    }
-
-    const onSystemLock = (): void => {
-      if (!this.settings.enabled || !this.hasConfiguredPasscode() || !this.settings.lockOnSystemLock) {
-        return;
-      }
-
-      this.requestGlobalLockState(true);
-    };
-
-    powerMonitor.on("lock-screen", onSystemLock);
     this.register(() => {
-      powerMonitor.removeListener("lock-screen", onSystemLock);
+      this.systemLockDetector?.stop();
+      this.systemLockDetector = null;
     });
   }
 

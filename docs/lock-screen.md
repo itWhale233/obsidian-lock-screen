@@ -34,6 +34,9 @@
 - `src/overlay.ts`
   - 渲染全屏不透明遮罩。
   - 处理解锁输入与错误提示。
+- `src/systemLockDetector.ts`
+  - 统一管理 Electron 与 Linux DBus 系统锁屏事件源。
+  - 解析 KDE/Plasma 和 freedesktop 锁屏信号并负责监听清理。
 
 ## 设置模型
 - `enabled`：是否启用授权码保护。
@@ -52,6 +55,16 @@
 6. 基于盐和迭代参数重新计算哈希并做常量时间比较。
 7. 校验成功则移除遮罩，恢复正常访问。
 8. 校验失败则保持锁定并提示错误。
+
+## 系统锁屏检测策略
+- 所有桌面平台优先保留 Electron `powerMonitor` 的 `lock-screen` 事件监听。
+- Linux 额外启动会话 DBus 监听，兼容 Electron 事件不可靠的桌面环境：
+  - KDE/Plasma：监听 `org.kde.screensaver.AboutToLock`。
+  - freedesktop：监听 `org.freedesktop.ScreenSaver.ActiveChanged(true)`。
+- `ActiveChanged(false)` 不会自动解锁插件，必须继续使用授权码解锁。
+- DBus 监听通过系统 `dbus-monitor` 命令运行，使用固定参数且不经过 shell。
+- Electron 与 DBus 信号可能重复到达，统一进入幂等的全局锁定流程。
+- 插件卸载时会移除 Electron 监听并终止 DBus 子进程。
 
 ## 多窗口同步策略
 - 使用 `BroadcastChannel` 在多个窗口间广播锁定/解锁事件。
@@ -91,15 +104,16 @@
 - 锁屏界面配色与 Obsidian 当前浅色/深色主题变量保持同步。
 
 ## 当前限制
-- 部分运行环境可能无法访问 Electron 锁屏事件通道。
+- Flatpak、Snap 等受限封装若禁止访问会话 DBus，Linux 兜底监听可能不可用。
+- Linux 系统需要提供 `dbus-monitor` 命令；Kubuntu 26.04 默认已包含该命令。
 - 尚未实现失败次数限制与冷却策略。
 
 ## 后续规划
 - 增加连续失败后的冷却机制。
 - 增加可配置的自动锁定延迟。
-- 评估并接入 Electron 层系统锁屏事件。
 
 ## 最近更新
+- 修复 Kubuntu 26.04 / Plasma 6.6 下 Electron 锁屏事件不生效的问题，新增 KDE 与 freedesktop 会话 DBus 监听兜底。
 - 修复锁屏页输入框在部分场景无法稳定聚焦与输入的问题。
 - 新增强制焦点守卫，锁定态持续确保输入焦点可用。
 - 调整全局键盘拦截策略：仅阻断遮罩外输入与高风险组合键，保留授权码输入流畅性。

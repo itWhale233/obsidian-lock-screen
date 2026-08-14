@@ -11,5 +11,5 @@
     "types": ["node", "obsidian"],
     "baseUrl": "."
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
